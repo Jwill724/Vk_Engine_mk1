@@ -20,9 +20,6 @@ namespace DescriptorSetOverwatch {
 
 // gltf loader asset descriptors
 void DescriptorSetOverwatch::initAssetDescriptors(size_t size) {
-	if (size == 0) {
-		size = 8u;
-	}
 	std::vector<PoolSizeRatio> poolSizes =
 	{
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 },
