@@ -11,9 +11,13 @@ struct GLTFMetallic_Roughness {
 	VkDescriptorSetLayout materialLayout;
 
 	struct MaterialConstants {
-		glm::vec4 colorFactors;
-		glm::vec4 metal_rough_factors;
-		glm::vec4 extra[14];
+		glm::vec4 colorFactors = glm::vec4(1.0f);
+		glm::vec4 metal_rough_factors = glm::vec4(1.0f);
+		float normalScale = 1.0f;
+		float pad0;
+		float pad1;
+		float pad2;
+		glm::vec4 extra[13];
 	};
 
 	struct MaterialResources {
@@ -21,6 +25,8 @@ struct GLTFMetallic_Roughness {
 		VkSampler colorSampler;
 		AllocatedImage metalRoughImage;
 		VkSampler metalRoughSampler;
+		AllocatedImage normalImage;
+		VkSampler normalSampler;
 		VkBuffer dataBuffer;
 		uint32_t dataBufferOffset;
 	};
@@ -51,5 +57,4 @@ namespace RenderScene {
 
 	void updateScene();
 	void renderDrawScene(VkCommandBuffer cmd, FrameData& frame);
-	void createSceneData();
 }

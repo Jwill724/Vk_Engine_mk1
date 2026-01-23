@@ -120,8 +120,6 @@ void EditorImgui::renderImgui() {
 
 	// Background controls section (Compute shader/post process effects)
 	if (ImGui::CollapsingHeader("Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SliderFloat("Render Scale", &Renderer::getRenderScale(), 0.3f, 1.f);
-
 		ComputeEffect& selected = Pipelines::postProcessPipeline.getComputeEffect();
 
 		ImGui::Text("Color Correction");

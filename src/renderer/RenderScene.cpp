@@ -63,25 +63,13 @@ void RenderScene::updateScene() {
 	currentFrustum = RenderGraph::extractFrustum(sceneData.viewproj);
 	mainDrawContext.frustum = currentFrustum;
 
-	sceneData.ambientColor = glm::vec4(0.2f);
+	sceneData.ambientColor = glm::vec4(0.5f);
 	sceneData.sunlightColor = glm::vec4(0.8f, 0.85f, 0.9f, 1.f);
-	sceneData.sunlightDirection = glm::normalize(glm::vec4(2.0f, 0.0f, -1.0f, 0.0f));
+	sceneData.sunlightDirection = glm::vec4(2.0f, 0.0f, -1.0f, 0.0f);
 	sceneData.cameraPosition = glm::vec4(mainCamera.position, 0.f);
 
-	for (auto& node : loadedScenes["structure"]->topNodes) {
-		node->refreshTransform(glm::mat4(1.f));
-	}
-
-	loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
-
-	for (auto& node : loadedScenes["skybox"]->topNodes) {
-		node->worldTransform = glm::translate(glm::mat4(1.0f), glm::vec3(sceneData.cameraPosition)) *
-			glm::scale(glm::mat4(1.0f), glm::vec3(5.0f));
-	}
-
-	mainDrawContext.enableCull = false;
-	loadedScenes["skybox"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
-	mainDrawContext.enableCull = true; // back to default
+	//mainDrawContext.enableCull = false;
+	loadedScenes["asset"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
 
 	auto end = std::chrono::system_clock::now();
 
@@ -101,19 +89,58 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 	stats.drawcallCount = 0;
 	stats.triangleCount = 0;
 
+	// Opaque, transparent, wireframe, bounding box all share the same push constant settings
+	PushConstantDef defaultPC = PipelinePresents::metalRoughMatSettings.pushConstantsInfo;
+
 	//begin clock
 	auto start = std::chrono::system_clock::now();
 
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = static_cast<float>(extent.width);
+	viewport.height = static_cast<float>(extent.height);
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+	VkRect2D scissor = {};
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = extent.width;
+	scissor.extent.height = extent.height;
+
+	vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+	AllocatedBuffer gpuSceneDataBuffer = BufferUtils::createBuffer(sizeof(GPUSceneData),
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, Renderer::getRenderImageAllocator());
+
+	//add it to the deletion queue of this frame so it gets deleted once its been used
+	frame._deletionQueue.push_function([=]() {
+		BufferUtils::destroyBuffer(gpuSceneDataBuffer, Renderer::getRenderImageAllocator());
+	});
+
+	//write the buffer
+	GPUSceneData* sceneDataPtr = reinterpret_cast<GPUSceneData*>(gpuSceneDataBuffer.mapped);
+	*sceneDataPtr = sceneData;
+
+	// create a descriptor set that binds that buffer and update it
+	VkDescriptorSet sceneDescriptor = frame._frameDescriptors.allocateDescriptor(Backend::getDevice(), _gpuSceneDataDescriptorLayout);
+
+	DescriptorWriter writer;
+	writer.writeBuffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	writer.updateSet(Backend::getDevice(), sceneDescriptor);
 
 	// SORT INDICES OF OPAQUE DRAW ARRAY
 	std::vector<uint32_t> opaque_draws;
 	opaque_draws.reserve(mainDrawContext.OpaqueSurfaces.size());
 
-	for (uint32_t i = 0; i < mainDrawContext.OpaqueSurfaces.size(); i++) {
+	for (uint32_t i = 0; i < mainDrawContext.OpaqueSurfaces.size(); ++i) {
 		opaque_draws.push_back(i);
 	}
 
-	// sort the opaque surfaces by material and mesh
+	//sort the opaque surfaces by material and mesh
 	std::sort(opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
 		const RenderObject& A = mainDrawContext.OpaqueSurfaces[iA];
 		const RenderObject& B = mainDrawContext.OpaqueSurfaces[iB];
@@ -138,40 +165,14 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 		const RenderObject& A = mainDrawContext.TransparentSurfaces[iA];
 		const RenderObject& B = mainDrawContext.TransparentSurfaces[iB];
 
-		glm::vec3 centerA = (A.aabb.vmax + A.aabb.vmin) * 0.5f;
-		glm::vec3 centerB = (B.aabb.vmax + B.aabb.vmin) * 0.5f;
-
 		glm::vec3 camPos = glm::vec3(sceneData.cameraPosition);
 
-		float distA = glm::length(centerA - camPos);
-		float distB = glm::length(centerB - camPos);
+		float distA = glm::length(A.aabb.origin - camPos);
+		float distB = glm::length(B.aabb.origin - camPos);
 
 		// For transparency, we want farther objects rendered first so sort in descending order
 		return distA > distB;
 	});
-
-
-	AllocatedBuffer gpuSceneDataBuffer = BufferUtils::createBuffer(sizeof(GPUSceneData),
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, Renderer::getRenderImageAllocator());
-
-	//add it to the deletion queue of this frame so it gets deleted once its been used
-	frame._deletionQueue.push_function([=]() {
-		BufferUtils::destroyBuffer(gpuSceneDataBuffer, Renderer::getRenderImageAllocator());
-	});
-
-	//write the buffer
-	GPUSceneData* sceneDataPtr = reinterpret_cast<GPUSceneData*>(gpuSceneDataBuffer.mapped);
-	*sceneDataPtr = sceneData;
-
-	//create a descriptor set that binds that buffer and update it
-	VkDescriptorSet sceneDescriptor = frame._frameDescriptors.allocateDescriptor(device, _gpuSceneDataDescriptorLayout);
-
-	DescriptorWriter writer;
-	writer.writeBuffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-	writer.updateSet(device, sceneDescriptor);
-
-	// Opaque, transparent, wireframe, bounding box all share the same push constant settings
-	PushConstantDef defaultPC = PipelinePresents::metalRoughMatSettings.pushConstantsInfo;
 
 
 	// === SKYBOX DRAW ===
@@ -185,35 +186,20 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 		skyBoxWriter.updateSet(Backend::getDevice(), skyBoxDescriptor);
 
 		glm::mat4 view = glm::mat4(glm::mat3(sceneData.view)); // strip translation
-		glm::mat4 proj = sceneData.proj;
-		glm::mat4 viewproj = proj * view;
+		glm::mat4 viewproj = sceneData.proj * view;
+		glm::mat4 invVp = glm::inverse(viewproj);
 
 		// Bind pipeline
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipelines::skyboxPipeline.pipeline);
 		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
 			Pipelines::skyboxPipeline.layout, 0, 1, &skyBoxDescriptor, 0, 0);
 
-		VkViewport viewport = {
-			.x = 0.f, .y = 0.f,
-			.width = static_cast<float>(extent.width),
-			.height = static_cast<float>(extent.height),
-			.minDepth = 0.f,
-			.maxDepth = 1.f
-		};
-		vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-		VkRect2D scissor = {
-			.offset = { 0, 0 },
-			.extent = { extent.width, extent.height }
-		};
-		vkCmdSetScissor(cmd, 0, 1, &scissor);
-
 		// Push constants
 		auto& skyboxPC = PipelinePresents::skyboxPipelineSettings.pushConstantsInfo;
 
-		vkCmdPushConstants(cmd, Pipelines::skyboxPipeline.layout, skyboxPC.stageFlags, skyboxPC.offset, skyboxPC.size, &viewproj);
+		vkCmdPushConstants(cmd, Pipelines::skyboxPipeline.layout, skyboxPC.stageFlags, skyboxPC.offset, skyboxPC.size, &invVp);
 
-		vkCmdDraw(cmd, 36, 1, 0, 0);
+		vkCmdDraw(cmd, 3, 1, 0, 0);
 	}
 
 	// draw state tracking
@@ -237,24 +223,6 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 
 				vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineToUse->pipeline);
 				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineToUse->layout, 0, 1, &sceneDescriptor, 0, nullptr);
-
-				VkViewport viewport = {};
-				viewport.x = 0;
-				viewport.y = 0;
-				viewport.width = static_cast<float>(extent.width);
-				viewport.height = static_cast<float>(extent.height);
-				viewport.minDepth = 0.f;
-				viewport.maxDepth = 1.f;
-
-				vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-				VkRect2D scissor = {};
-				scissor.offset.x = 0;
-				scissor.offset.y = 0;
-				scissor.extent.width = extent.width;
-				scissor.extent.height = extent.height;
-
-				vkCmdSetScissor(cmd, 0, 1, &scissor);
 			}
 
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineToUse->layout, 1, 1,
@@ -284,37 +252,45 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 		draw(mainDrawContext.OpaqueSurfaces[r]);
 	}
 
-	// TODO: DEPTH SORTING
 	for (auto& r : transparent_draws) {
 		draw(mainDrawContext.TransparentSurfaces[r]);
 	}
 
 	// VISIBLE AABB FOR OBJECTS
-	if (RenderSceneSettings::drawBoundingBoxes) {
+	if (RenderSceneSettings::drawBoundingBoxes && (!opaque_draws.empty() || !transparent_draws.empty())) {
 		std::vector<glm::vec3> allVerts;
 		std::vector<uint32_t> drawOffsets;
 
+		uint32_t offset = 0;
 		for (auto& r : opaque_draws) {
 			const RenderObject& obj = mainDrawContext.OpaqueSurfaces[r];
 
 			auto verts = RenderGraph::GetAABBVertices(obj.aabb);
 
-			uint32_t offset = static_cast<uint32_t>(allVerts.size());
+			offset = static_cast<uint32_t>(allVerts.size());
 			drawOffsets.push_back(offset);
 			allVerts.insert(allVerts.end(), verts.begin(), verts.end());
 		}
 
-		if (allVerts.empty()) {
-			return; // Don't try to draw anything, prevent crash
+		for (auto& r : transparent_draws) {
+			const RenderObject& obj = mainDrawContext.TransparentSurfaces[r];
+
+			auto verts = RenderGraph::GetAABBVertices(obj.aabb);
+
+			offset = static_cast<uint32_t>(allVerts.size());
+			drawOffsets.push_back(offset);
+			allVerts.insert(allVerts.end(), verts.begin(), verts.end());
 		}
 
+		const size_t totalSize = sizeof(glm::vec3) * allVerts.size();
+
 		AllocatedBuffer aabbVBO = BufferUtils::createBuffer(
-			sizeof(glm::vec3) * allVerts.size(),
+			totalSize,
 			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 			VMA_MEMORY_USAGE_CPU_TO_GPU,
 			Renderer::getRenderImageAllocator()
 		);
-		memcpy(aabbVBO.mapped, allVerts.data(), sizeof(glm::vec3) * allVerts.size());
+		memcpy(aabbVBO.mapped, allVerts.data(), totalSize);
 
 		frame._deletionQueue.push_function([=]() {
 			BufferUtils::destroyBuffer(aabbVBO, Renderer::getRenderImageAllocator());
@@ -322,8 +298,8 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 
 		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipelines::boundingBoxPipeline.pipeline);
 
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &aabbVBO.buffer, &offset);
+		VkDeviceSize vtxOffset = 0;
+		vkCmdBindVertexBuffers(cmd, 0, 1, &aabbVBO.buffer, &vtxOffset);
 
 		GPUDrawPushConstants pc;
 		pc.worldMatrix = sceneData.viewproj;
@@ -343,7 +319,7 @@ void RenderScene::renderDrawScene(VkCommandBuffer cmd, FrameData& frame) {
 		);
 
 		const uint32_t vertsPerAABB = 24;
-		for (uint32_t i = 0; i < drawOffsets.size(); i++) {
+		for (uint32_t i = 0; i < drawOffsets.size(); ++i) {
 			uint32_t vertexOffset = drawOffsets[i];
 			vkCmdDraw(cmd, vertsPerAABB, 1, vertexOffset, 0);
 		}
@@ -376,38 +352,11 @@ MaterialInstance GLTFMetallic_Roughness::writeMaterial(VkDevice device, Material
 	writer.writeBuffer(0, resources.dataBuffer, sizeof(MaterialConstants), resources.dataBufferOffset, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 	writer.writeImage(1, resources.colorImage.imageView, resources.colorSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 	writer.writeImage(2, resources.metalRoughImage.imageView, resources.metalRoughSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+	writer.writeImage(3, resources.normalImage.imageView, resources.normalSampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 
 	writer.updateSet(device, matData.materialSet);
 
 	return matData;
-}
-
-void RenderScene::createSceneData() {
-	GLTFMetallic_Roughness::MaterialResources materialResources;
-	//default the material textures
-	materialResources.colorImage = AssetManager::getWhiteImage();
-	materialResources.colorSampler = AssetManager::getDefaultSamplerLinear();
-	materialResources.metalRoughImage = AssetManager::getWhiteImage();
-	materialResources.metalRoughSampler = AssetManager::getDefaultSamplerLinear();
-
-	//set the uniform buffer for the material data
-	AllocatedBuffer materialConstants = BufferUtils::createBuffer(sizeof(GLTFMetallic_Roughness::MaterialConstants),
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, Renderer::getRenderImageAllocator());
-
-	GLTFMetallic_Roughness::MaterialConstants* sceneDataPtr = reinterpret_cast<GLTFMetallic_Roughness::MaterialConstants*>(materialConstants.mapped);
-
-	sceneDataPtr->colorFactors = glm::vec4{ 1,1,1,1 };
-	sceneDataPtr->metal_rough_factors = glm::vec4{ 0,0.5,0,0 };
-
-	Engine::getDeletionQueue().push_function([=]() {
-		BufferUtils::destroyBuffer(materialConstants, Renderer::getRenderImageAllocator());
-	});
-
-	materialResources.dataBuffer = materialConstants.buffer;
-	materialResources.dataBufferOffset = 0;
-
-	_defaultData = metalRoughMaterial.writeMaterial(Backend::getDevice(), MaterialPass::MainColor,
-		materialResources, DescriptorSetOverwatch::imageDescriptorManager);
 }
 
 void GLTFMetallic_Roughness::clearResources(VkDevice device) {

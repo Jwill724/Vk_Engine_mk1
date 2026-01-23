@@ -26,8 +26,8 @@ void Window::updateWindowSize() {
 	Engine::getWindowExtent().height = static_cast<uint32_t>(height);
 
 	Renderer::getDrawExtent() = {
-		static_cast<uint32_t>(Engine::getWindowExtent().width * Renderer::getRenderScale()),
-		static_cast<uint32_t>(Engine::getWindowExtent().height * Renderer::getRenderScale()),
+		static_cast<uint32_t>(Engine::getWindowExtent().width),
+		static_cast<uint32_t>(Engine::getWindowExtent().height),
 		1
 	};
 }

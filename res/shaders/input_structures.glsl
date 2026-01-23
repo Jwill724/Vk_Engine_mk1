@@ -13,8 +13,10 @@ layout(set = 1, binding = 0) uniform GLTFMaterialData
 {
 	vec4 colorFactors;
 	vec4 metal_rough_factors;
-
+	float normalScale;
+	// Padded on cpu
 } materialData;
 
 layout(set = 1, binding = 1) uniform sampler2D colorTex;
 layout(set = 1, binding = 2) uniform sampler2D metalRoughTex;
+layout(set = 1, binding = 3) uniform sampler2D normalTex;

@@ -159,7 +159,7 @@ void RendererUtils::createRenderImage(AllocatedImage& renderImage, VkImageUsageF
 	}
 
 	// Textures image creation is used with this function and it has seperate cleanup
-	if (deletionQueue) {
+	if (deletionQueue != nullptr) {
 		auto* imageView = &renderImage.imageView;
 		auto* image = &renderImage.image;
 		auto* storageView = &renderImage.storageView;

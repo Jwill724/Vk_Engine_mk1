@@ -20,6 +20,9 @@ namespace DescriptorSetOverwatch {
 
 // gltf loader asset descriptors
 void DescriptorSetOverwatch::initAssetDescriptors(size_t size) {
+	if (size == 0) {
+		size = 8u;
+	}
 	std::vector<PoolSizeRatio> poolSizes =
 	{
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3 },
@@ -36,7 +39,8 @@ void DescriptorSetOverwatch::initImageDescriptors() {
 	std::vector<PoolSizeRatio> poolSizes =
 	{
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
 	};
 
 	imageDescriptorManager.init(10, poolSizes);
@@ -61,7 +65,6 @@ void DescriptorSetOverwatch::initImageDescriptors() {
 
 	imageDescriptorManager.clearBinding();
 
-
 	imageDescriptorManager.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 	imageDescriptorManager.addBinding(1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT);
 
@@ -74,7 +77,7 @@ void DescriptorSetOverwatch::initImageDescriptors() {
 
 	// meshes
 	imageDescriptorManager.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT); // for vertex buffer
-	imageDescriptorManager.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT); // for texture
+	imageDescriptorManager.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT); // texture
 	RenderScene::getGPUSceneDescriptorLayout() = imageDescriptorManager.createSetLayout(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
 	imageDescriptorManager.clearBinding();
@@ -83,6 +86,7 @@ void DescriptorSetOverwatch::initImageDescriptors() {
 	imageDescriptorManager.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
 	imageDescriptorManager.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
 	imageDescriptorManager.addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+	imageDescriptorManager.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
 
 	// Material layout is lifetime is controlled my metalRoughMaterial
 	VkDescriptorSetLayout materialLayout = imageDescriptorManager.createSetLayout(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);

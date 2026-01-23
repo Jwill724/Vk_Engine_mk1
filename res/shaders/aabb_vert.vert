@@ -1,11 +1,9 @@
 #version 450
 
 #extension GL_EXT_buffer_reference : require
-#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_scalar_block_layout : require
 
-#include "input_structures.glsl"
-
-layout(buffer_reference, std430) readonly buffer VertexBuffer
+layout(buffer_reference, scalar) readonly buffer VertexBuffer
 {
     vec3 vertices[];
 };

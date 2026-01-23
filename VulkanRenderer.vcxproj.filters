@@ -31,12 +31,6 @@
     <ClCompile Include="src\input\Camera.cpp">
       <Filter>src\input</Filter>
     </ClCompile>
-    <ClCompile Include="src\renderer\types\Mesh.cpp">
-      <Filter>src\renderer\types</Filter>
-    </ClCompile>
-    <ClCompile Include="src\renderer\types\Model.cpp">
-      <Filter>src\renderer\types</Filter>
-    </ClCompile>
     <ClCompile Include="src\renderer\types\Texture.cpp">
       <Filter>src\renderer\types</Filter>
     </ClCompile>
@@ -124,9 +118,6 @@
     <ClCompile Include="src\core\EngineState.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\renderer\types\LightCube.cpp">
-      <Filter>src\renderer\types</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\input\Camera.h">
@@ -141,14 +132,8 @@
     <ClInclude Include="src\common\Vk_Types.h">
       <Filter>src\common</Filter>
     </ClInclude>
-    <ClInclude Include="src\renderer\types\Mesh.h">
-      <Filter>src\renderer\types</Filter>
-    </ClInclude>
     <ClInclude Include="src\renderer\Renderer.h">
       <Filter>src\renderer</Filter>
-    </ClInclude>
-    <ClInclude Include="src\renderer\types\Model.h">
-      <Filter>src\renderer\types</Filter>
     </ClInclude>
     <ClInclude Include="src\renderer\CommandBuffer.h">
       <Filter>src\renderer</Filter>
@@ -207,11 +192,8 @@
     <ClInclude Include="src\core\EngineState.h">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\renderer\types\LightCube.h">
-      <Filter>src\renderer\types</Filter>
-    </ClInclude>
     <ClInclude Include="src\input\UserInput.h">
-      <Filter>src\renderer</Filter>
+      <Filter>src\input</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -250,9 +232,6 @@
     <None Include="res\models\monkey.glb">
       <Filter>res\models</Filter>
     </None>
-    <None Include="res\models\basicmesh.glb">
-      <Filter>res\models</Filter>
-    </None>
     <None Include="res\models\structure_mat.glb">
       <Filter>res\models</Filter>
     </None>
@@ -260,12 +239,6 @@
       <Filter>res\models</Filter>
     </None>
     <None Include="res\models\town4new.glb">
-      <Filter>res\models</Filter>
-    </None>
-    <None Include="res\models\cubeskybox.glb">
-      <Filter>res\models</Filter>
-    </None>
-    <None Include="res\models\terrain.glb">
       <Filter>res\models</Filter>
     </None>
   </ItemGroup>

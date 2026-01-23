@@ -187,6 +187,7 @@ void Backend::createLogicalDevice() {
 	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 	features12.bufferDeviceAddress = VK_TRUE;
 	features12.descriptorIndexing = VK_TRUE;
+	features12.scalarBlockLayout = VK_TRUE;
 
 	// vulkan 1.3 features
 	VkPhysicalDeviceVulkan13Features features13{};
@@ -222,7 +223,7 @@ void Backend::createSwapchain() {
 	BackendTools::SwapChainSupportDetails swapChainSupport = BackendTools::querySwapChainSupport(_physicalDevice, _surface);
 	VkSurfaceFormatKHR surfaceFormat = BackendTools::chooseSwapSurfaceFormat(swapChainSupport.formats);
 	// TODO: Can only run proper fps with v-sync
-//	VkPresentModeKHR presentMode = chooseSwapSurfacePresentMode(swapChainSupport.presentModes);
+	VkPresentModeKHR presentMode = BackendTools::chooseSwapSurfacePresentMode(swapChainSupport.presentModes);
 	VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
 	// sticking to min delays, request one more than min
@@ -244,7 +245,7 @@ void Backend::createSwapchain() {
 	createInfo.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // V-SYNC manually set
+	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
 
 	uint32_t qFamIndices[] = {

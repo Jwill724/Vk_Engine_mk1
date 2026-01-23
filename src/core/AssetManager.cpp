@@ -31,6 +31,12 @@ namespace AssetManager {
 	AllocatedImage _errorCheckerboardImage;
 	AllocatedImage& getCheckboardTex() { return _errorCheckerboardImage; }
 
+	AllocatedImage _metalRoughMat;
+	AllocatedImage& getMetalRoughMat() { return _metalRoughMat; }
+
+	AllocatedImage _normalMat;
+	AllocatedImage& getNormalMat() { return _normalMat; }
+
 	VkPhysicalDeviceProperties _deviceProps;
 	VkSampler _defaultSamplerLinear;
 	VkSampler _defaultSamplerNearest;
@@ -70,18 +76,16 @@ void AssetManager::loadAssets() {
 	initTextures();
 
 	// Primary file loading
-	//std::string structurePath = { "res/models/sponza/base/NewSponza_Main_gLTF_003.gltf" };
-	std::string structurePath = { "res/models/structure.glb" };
-	std::string skyboxPath = { "res/models/cubeskybox.glb" };
+	//std::string assetPath = { "res/models/structure.glb" };
+	//std::string assetPath = { "res/models/structure_mat.glb" };
+	//std::string assetPath = { "res/models/monkey.glb" };
+	std::string assetPath = { "res/models/sponza.glb" };
+	//std::string assetPath = { "res/models/town4new.glb" };
 
-	auto skyboxFile = loadGltf(skyboxPath);
-	auto structureFile = loadGltf(structurePath);
+	auto assetFile = loadGltf(assetPath);
+	assert(assetFile.has_value());
 
-	assert(structureFile.has_value());
-	assert(skyboxFile.has_value());
-
-	RenderScene::loadedScenes["skybox"] = *skyboxFile;
-	RenderScene::loadedScenes["structure"] = *structureFile;
+	RenderScene::loadedScenes["asset"] = *assetFile;
 }
 
 // Global helper functions
@@ -137,6 +141,27 @@ void AssetManager::initTextures() {
 	_blackImage.imageFormat = format;
 	_blackImage.mipmapped = true;
 
+	_metalRoughMat.imageExtent = texExtent;
+	_metalRoughMat.imageFormat = format;
+	_metalRoughMat.mipmapped = true;
+
+	// From what I've read about modern GLTF pbr, g is roughness and b is metallic.
+	uint8_t mrPixelData[4]{
+		static_cast<uint8_t>(0.0f * 255), // metallic?
+		static_cast<uint8_t>(0.5f * 255), // roughness
+		static_cast<uint8_t>(0.0f * 255), // metallic?
+		static_cast<uint8_t>(1.0f * 255)
+	};
+
+	RendererUtils::createTextureImage((void*)&mrPixelData, _metalRoughMat, usage, memoryProp, samples, &_assetDeletionQueue, _assetAllocator);
+
+	_normalMat.imageExtent = texExtent;
+	_normalMat.imageFormat = format;
+	_normalMat.mipmapped = true;
+
+	uint32_t flatNormal = glm::packUnorm4x8(glm::vec4(0.5f, 0.5f, 1.0f, 1.0f)); // X = 128, Y = 128, Z = 255, A = 255
+	RendererUtils::createTextureImage((void*)&flatNormal, _normalMat, usage, memoryProp, samples, &_assetDeletionQueue, _assetAllocator);
+
 	//3 default textures, white, grey, black. 1 pixel each
 	// all same settings
 	uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
@@ -174,7 +199,7 @@ void AssetManager::initTextures() {
 
 	convertHDR2Cubemap();
 
-	_assetDeletionQueue.push_function([&]() {
+	_assetDeletionQueue.push_function([=]() {
 		vkDestroySampler(Backend::getDevice(), _defaultSamplerNearest, nullptr);
 		vkDestroySampler(Backend::getDevice(), _defaultSamplerLinear, nullptr);
 	});
@@ -291,9 +316,11 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 		return std::nullopt;
 	}
 
+	size_t materialSize = gltf.materials.size();
 
-	DescriptorSetOverwatch::initAssetDescriptors(gltf.materials.size());
+	if (materialSize == 0) materialSize = 1;
 
+	DescriptorSetOverwatch::initAssetDescriptors(materialSize);
 
 	for (fastgltf::Sampler& sampler : gltf.samplers) {
 
@@ -320,7 +347,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 
 	std::vector<std::shared_ptr<MeshAsset>> meshes;
 	std::vector<std::shared_ptr<Node>> nodes;
-	std::vector<AllocatedImage> images;
 	std::vector<std::shared_ptr<GLTFMaterial>> materials;
 
 	// MeshNodes depend on meshes, meshes depend on materials, and materials on textures
@@ -330,24 +356,51 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 		std::optional<AllocatedImage> img = Textures::loadImage(gltf, image);
 
 		if (img.has_value()) {
-			images.push_back(*img);
-			file.images[image.name.c_str()] = *img;
-			fmt::print("Loaded texture {}\n", image.name);
+			scene->images.push_back(*img);
 		}
 		else {
-			// we failed to load, so lets give the slot a default white texture to not
-			// completely break loading
-			images.push_back(_errorCheckerboardImage);
+			scene->images.push_back(_errorCheckerboardImage);
 			fmt::print("gltf failed to load texture {}\n", image.name);
 		}
 	}
 
 	// create buffer to hold the material data
-	file.materialDataBuffer = BufferUtils::createBuffer(sizeof(GLTFMetallic_Roughness::MaterialConstants) * gltf.materials.size(),
+	file.materialDataBuffer = BufferUtils::createBuffer(sizeof(GLTFMetallic_Roughness::MaterialConstants) * materialSize,
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU, _assetAllocator);
+
 	int data_index = 0;
 	GLTFMetallic_Roughness::MaterialConstants* sceneMaterialConstants =
 		(GLTFMetallic_Roughness::MaterialConstants*)file.materialDataBuffer.info.pMappedData;
+
+	// Setup one default material if asset doesn't come with materials
+	if (gltf.materials.empty()) {
+		auto newMat = std::make_shared<GLTFMaterial>();
+		materials.push_back(newMat);
+		file.materials["Default"] = newMat;
+
+		GLTFMetallic_Roughness::MaterialConstants constants;
+		sceneMaterialConstants[0] = constants;
+
+		MaterialPass passType = MaterialPass::MainColor;
+
+		GLTFMetallic_Roughness::MaterialResources materialResources;
+		materialResources.colorImage = _whiteImage;
+		materialResources.colorSampler = _defaultSamplerLinear;
+		materialResources.metalRoughImage = _metalRoughMat;
+		materialResources.metalRoughSampler = _defaultSamplerNearest;
+		materialResources.normalImage = _normalMat;
+		materialResources.normalSampler = _defaultSamplerLinear;
+
+		materialResources.dataBuffer = file.materialDataBuffer.buffer;
+		materialResources.dataBufferOffset = 0;
+
+		newMat->data = RenderScene::metalRoughMaterial.writeMaterial(
+			Backend::getDevice(),
+			passType,
+			materialResources,
+			DescriptorSetOverwatch::assetDescriptorManager
+		);
+	}
 
 	for (fastgltf::Material& mat : gltf.materials) {
 		auto newMat = std::make_shared<GLTFMaterial>();
@@ -355,23 +408,13 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 		file.materials[mat.name.c_str()] = newMat;
 
 		GLTFMetallic_Roughness::MaterialConstants constants;
-		constants.colorFactors.x = mat.pbrData.baseColorFactor[0];
-		constants.colorFactors.y = mat.pbrData.baseColorFactor[1];
-		constants.colorFactors.z = mat.pbrData.baseColorFactor[2];
-		constants.colorFactors.w = mat.pbrData.baseColorFactor[3];
 
-		constants.metal_rough_factors.x = mat.pbrData.metallicFactor;
-		constants.metal_rough_factors.y = mat.pbrData.roughnessFactor;
 		// write material parameters to buffer
 		sceneMaterialConstants[data_index] = constants;
 
 		MaterialPass passType = MaterialPass::MainColor;
 
-		if (mat.name.starts_with("SKY_")) {
-			fmt::print("Material name: {}\n", mat.name);
-			passType = MaterialPass::SkyBox;
-		}
-		else if (mat.alphaMode == fastgltf::AlphaMode::Blend) {
+		if (mat.alphaMode == fastgltf::AlphaMode::Blend) {
 			fmt::print("Material name: {}\n", mat.name);
 			passType = MaterialPass::Transparent;
 		}
@@ -379,8 +422,10 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 		GLTFMetallic_Roughness::MaterialResources materialResources;
 		materialResources.colorImage = _whiteImage;
 		materialResources.colorSampler = _defaultSamplerLinear;
-		materialResources.metalRoughImage = _whiteImage;
-		materialResources.metalRoughSampler = _defaultSamplerLinear;
+		materialResources.metalRoughImage = _metalRoughMat;
+		materialResources.metalRoughSampler = _defaultSamplerNearest;
+		materialResources.normalImage = _normalMat;
+		materialResources.normalSampler = _defaultSamplerLinear;
 
 		// set the uniform buffer for the material data
 		materialResources.dataBuffer = file.materialDataBuffer.buffer;
@@ -390,9 +435,36 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 			size_t img = gltf.textures[mat.pbrData.baseColorTexture.value().textureIndex].imageIndex.value();
 			size_t sampler = gltf.textures[mat.pbrData.baseColorTexture.value().textureIndex].samplerIndex.value();
 
-			materialResources.colorImage = images[img];
+			materialResources.colorImage = scene->images[img];
 			materialResources.colorSampler = file.samplers[sampler];
+
+			constants.colorFactors.x = mat.pbrData.baseColorFactor[0];
+			constants.colorFactors.y = mat.pbrData.baseColorFactor[1];
+			constants.colorFactors.z = mat.pbrData.baseColorFactor[2];
+			constants.colorFactors.w = mat.pbrData.baseColorFactor[3];
 		}
+
+		if (mat.pbrData.metallicRoughnessTexture.has_value()) {
+			size_t img = gltf.textures[mat.pbrData.metallicRoughnessTexture.value().textureIndex].imageIndex.value();
+			size_t sampler = gltf.textures[mat.pbrData.metallicRoughnessTexture.value().textureIndex].samplerIndex.value();
+
+			materialResources.metalRoughImage = scene->images[img];
+			materialResources.metalRoughSampler = file.samplers[sampler];
+
+			constants.metal_rough_factors.x = mat.pbrData.metallicFactor;
+			constants.metal_rough_factors.y = mat.pbrData.roughnessFactor;
+		}
+
+		if (mat.normalTexture.has_value()) {
+			size_t img = gltf.textures[mat.normalTexture.value().textureIndex].imageIndex.value();
+			size_t sampler = gltf.textures[mat.normalTexture.value().textureIndex].samplerIndex.value();
+
+			materialResources.normalImage = scene->images[img];
+			materialResources.normalSampler = file.samplers[sampler];
+
+			constants.normalScale = mat.normalTexture->scale;
+		}
+
 		// build material
 		newMat->data = RenderScene::metalRoughMaterial.writeMaterial(
 			Backend::getDevice(),
@@ -565,15 +637,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> AssetManager::loadGltf(std::string_vi
 	for (auto& node : nodes) {
 		if (node->parent.lock() == nullptr) {
 			file.topNodes.push_back(node);
-
-			// Skip transform propagation for skyboxes
-			auto meshNode = std::dynamic_pointer_cast<MeshNode>(node);
-			if (meshNode && meshNode->mesh && meshNode->mesh->surfaces.size() > 0) {
-				if (meshNode->mesh->surfaces[0].material->data.passType == MaterialPass::SkyBox) {
-					continue; // don't apply transforms now
-				}
-			}
-
 			node->refreshTransform(glm::mat4{ 1.f });
 		}
 	}
@@ -603,16 +666,27 @@ void LoadedGLTF::clearAll() {
 		BufferUtils::destroyBuffer(v->meshBuffers.vertexBuffer, allocator);
 	}
 
-	for (auto& [k, v] : images) {
-		if (v.image == AssetManager::getCheckboardTex().image) {
-			//dont destroy the default images
+	for (auto& img : images) {
+		//dont destroy the default images
+		if (img.image == VK_NULL_HANDLE ||
+			img.image == AssetManager::getCheckboardTex().image ||
+			img.image == AssetManager::getWhiteImage().image ||
+			img.image == AssetManager::getMetalRoughMat().image ||
+			img.image == AssetManager::getNormalMat().image)
+		{
 			continue;
 		}
-
-		RendererUtils::destroyTexImage(device, v, allocator);
+		RendererUtils::destroyTexImage(device, img, allocator);
 	}
 
 	for (auto& sampler : samplers) {
+		if (sampler == VK_NULL_HANDLE ||
+			sampler == AssetManager::getDefaultSamplerLinear() ||
+			sampler == AssetManager::getDefaultSamplerNearest())
+		{
+			continue;
+		}
+
 		vkDestroySampler(device, sampler, nullptr);
 	}
 }
@@ -640,7 +714,6 @@ void AssetManager::convertHDR2Cubemap() {
 		_assetAllocator
 	);
 	stbi_image_free(data);
-
 
 	DescriptorWriter cubeMapWriter;
 	cubeMapWriter.writeImage(0, equirect.imageView, _defaultSamplerLinear,

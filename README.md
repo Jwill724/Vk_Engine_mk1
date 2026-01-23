@@ -14,6 +14,8 @@ The engine truly came together after integrating ideas from [vkguide.dev](https:
 - Compute shader-based post-processing
 - ImGui debug UI
 - Color blending and multisampling
+- PBR rendering
+- Normal mapping
 - Mipmapping
 - AABB frustum culling
 - Transparent depth sorting
@@ -23,9 +25,10 @@ The engine truly came together after integrating ideas from [vkguide.dev](https:
 
 ## Screenshots
 
-![Main Render](res/screenshots/spacestation.png)
-![HDR environments](res/screenshots/citysky.png)
-![Wireframe View](res/screenshots/wireframe.png)
+![Main Render](res/screenshots/sponza.png)
+![HDR environment](res/screenshots/spacestation.png)
+![Wireframe](res/screenshots/wireframe.png)
+![AABB view](res/screenshots/citysky.png)
 
 ## Controls
 - `W A S D` – Move forward, left, back, right  

@@ -19,9 +19,6 @@ namespace Renderer {
 	VkExtent3D _drawExtent;
 	VkExtent3D& getDrawExtent() { return _drawExtent; }
 
-	float _renderScale = 1.f;
-	float& getRenderScale() { return _renderScale; }
-
 	// primary render image
 	AllocatedImage _drawImage;
 	AllocatedImage& getDrawImage() { return _drawImage; }
@@ -57,12 +54,11 @@ namespace Renderer {
 void Renderer::setupRenderImages() {
 	// draw image should match window extent
 	_drawExtent = {
-		static_cast<uint32_t>(Engine::getWindowExtent().width * _renderScale),
-		static_cast<uint32_t>(Engine::getWindowExtent().height * _renderScale),
+		static_cast<uint32_t>(Engine::getWindowExtent().width),
+		static_cast<uint32_t>(Engine::getWindowExtent().height),
 		1
 	};
 
-	// hardcoding the draw format to 32 bit float
 	_drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 	_drawImage.imageExtent = _drawExtent;
 
@@ -117,7 +113,7 @@ void Renderer::setupRenderImages() {
 
 
 	// SKYBOX
-	VkExtent3D skyboxCubeExtent = { 2048, 2048, 1 };
+	VkExtent3D skyboxCubeExtent = { 1024, 1024, 1 };
 	_skyboxImage.imageExtent = skyboxCubeExtent;
 	_skyboxImage.imageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 	_skyboxImage.isCubeMap = true;
@@ -159,9 +155,9 @@ void Renderer::init() {
 		VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 	drawImageWriter.writeImage(1, _drawImage.imageView, AssetManager::getDefaultSamplerLinear(),
 		VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+
 	drawImageWriter.updateSet(Backend::getDevice(), DescriptorSetOverwatch::getPostProcessDescriptors().descriptorSet);
 
-	RenderScene::createSceneData();
 	RenderScene::setCamera();
 }
 
@@ -170,8 +166,10 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex) {
 	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-	_drawExtent.height = static_cast<uint32_t>(std::min(Backend::getSwapchainExtent().height, _drawImage.imageExtent.height) * _renderScale);
-	_drawExtent.width = static_cast<uint32_t>(std::min(Backend::getSwapchainExtent().width, _drawImage.imageExtent.width) * _renderScale);
+	// Note: To achieve window extent = to draw extent during each resize the renderer will need to destroy the current
+	// images and create new ones in the proper swapchain extent.
+	_drawExtent.height = static_cast<uint32_t>(std::min(Backend::getSwapchainExtent().height, _drawImage.imageExtent.height));
+	_drawExtent.width = static_cast<uint32_t>(std::min(Backend::getSwapchainExtent().width, _drawImage.imageExtent.width));
 
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
@@ -222,13 +220,21 @@ void Renderer::recordCommandBuffer(VkCommandBuffer cmd, uint32_t imageIndex) {
 	);
 
 	// Transition swapchain to COLOR_ATTACHMENT_OPTIMAL for ImGui
-	RendererUtils::transitionImage(cmd, Backend::getSwapchainImages()[imageIndex], _drawImage.imageFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	RendererUtils::transitionImage(cmd,
+		Backend::getSwapchainImages()[imageIndex],
+		Backend::getSwapchainImageFormat(),
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 	// Draw ImGui
 	EditorImgui::drawImgui(cmd, Backend::getSwapchainImageViews()[imageIndex], false);
 
 	// Transition swapchain to PRESENT
-	RendererUtils::transitionImage(cmd, Backend::getSwapchainImages()[imageIndex], _drawImage.imageFormat, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	RendererUtils::transitionImage(cmd,
+		Backend::getSwapchainImages()[imageIndex],
+		Backend::getSwapchainImageFormat(),
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	// END COMMAND BUFFER
 	VK_CHECK(vkEndCommandBuffer(cmd));

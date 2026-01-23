@@ -91,7 +91,7 @@ void PipelineManager::initPipelines() {
 	// ===OPAQUE PIPELINE===
 	PipelinePresents::opaqueSettings.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	PipelinePresents::opaqueSettings.polygonMode = VK_POLYGON_MODE_FILL;
-	PipelinePresents::opaqueSettings.cullMode = VK_CULL_MODE_BACK_BIT;
+	PipelinePresents::opaqueSettings.cullMode = VK_CULL_MODE_NONE;
 	PipelinePresents::opaqueSettings.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	PipelinePresents::opaqueSettings.enableBlending = false;
 	PipelinePresents::opaqueSettings.enableDepthTest = true;
@@ -107,7 +107,7 @@ void PipelineManager::initPipelines() {
 	pipeline_builder.initializePipelineSTypes();
 	PipelinePresents::transparentSettings.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	PipelinePresents::transparentSettings.polygonMode = VK_POLYGON_MODE_FILL;
-	PipelinePresents::transparentSettings.cullMode = VK_CULL_MODE_BACK_BIT;
+	PipelinePresents::transparentSettings.cullMode = VK_CULL_MODE_NONE;
 	PipelinePresents::transparentSettings.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	PipelinePresents::transparentSettings.enableBlending = true;
 	PipelinePresents::transparentSettings.enableDepthTest = true;

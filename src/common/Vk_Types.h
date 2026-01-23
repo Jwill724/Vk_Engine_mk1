@@ -140,9 +140,7 @@ struct GPUSceneData{
 
 enum class MaterialPass : uint8_t {
 	MainColor,
-	Transparent,
-	SkyBox,
-	Other
+	Transparent
 };
 
 struct GraphicsPipeline {
@@ -159,14 +157,6 @@ struct MaterialInstance {
 struct GLTFMaterial {
 	MaterialInstance data;
 };
-
-struct GPUGLTFMaterial {
-	glm::vec4 colorFactors;
-	glm::vec4 metal_rough_factors;
-	glm::vec4 extra[14];
-};
-
-static_assert(sizeof(GPUGLTFMaterial) == 256);
 
 struct Frustum {
 	glm::vec4 planes[6]; // Plane equation: ax + by + cz + d = 0

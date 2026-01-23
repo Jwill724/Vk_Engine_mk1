@@ -29,7 +29,6 @@ namespace Renderer {
 	VkImageView& getDrawImageView();
 	DeletionQueue& getRenderImageDeletionQueue();
 	VmaAllocator& getRenderImageAllocator();
-	float& getRenderScale();
 	AllocatedImage& getPostProcessImage();
 	AllocatedImage& getSkyBoxImage();
 

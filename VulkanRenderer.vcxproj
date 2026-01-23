@@ -135,15 +135,6 @@
     <ClCompile Include="src\vulkan\Window.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="src\renderer\types\Mesh.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="src\renderer\types\LightCube.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="src\renderer\types\Model.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
-    </ClCompile>
     <!-- 3rd-party code (no PCH) -->
     <ClCompile Include="vendor\stb_image\stb_image.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -199,9 +190,6 @@
     <ClInclude Include="src\renderer\Renderer.h" />
     <ClInclude Include="src\renderer\RenderScene.h" />
     <ClInclude Include="src\renderer\RenderGraph.h" />
-    <ClInclude Include="src\renderer\types\LightCube.h" />
-    <ClInclude Include="src\renderer\types\Mesh.h" />
-    <ClInclude Include="src\renderer\types\Model.h" />
     <ClInclude Include="src\renderer\types\Texture.h" />
     <ClInclude Include="src\renderer\Descriptor.h" />
     <ClInclude Include="src\renderer\CommandBuffer.h" />
@@ -229,11 +217,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="res\models\monkey.glb" />
-    <None Include="res\models\basicmesh.glb" />
     <None Include="res\models\structure_mat.glb" />
     <None Include="res\models\structure.glb" />
     <None Include="res\models\town4new.glb" />
-    <None Include="res\models\cubeskybox.glb" />
   </ItemGroup>
   <PropertyGroup>
     <!-- Include Directories for project-wide usage -->

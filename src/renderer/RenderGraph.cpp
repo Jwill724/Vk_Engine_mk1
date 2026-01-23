@@ -6,12 +6,7 @@
 void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
 	glm::mat4 nodeMatrix;
 	for (auto& s : mesh->surfaces) {
-		if (s.material->data.passType == MaterialPass::SkyBox) {
-			nodeMatrix = glm::translate(glm::mat4(1.f), RenderScene::mainCamera.position); // lock to camera position
-		}
-		else {
-			nodeMatrix = topMatrix * worldTransform;
-		}
+		nodeMatrix = topMatrix * worldTransform;
 
 		RenderObject def;
 		def.indexCount = s.count;
@@ -22,8 +17,8 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
 		def.transform = nodeMatrix;
 		def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
 
-		if (!ctx.enableCull || s.material->data.passType == MaterialPass::Transparent) {
-			if (RenderGraph::isVisible(def.aabb, ctx.frustum)) {
+		if (s.material->data.passType == MaterialPass::Transparent) {
+			if (!ctx.enableCull || RenderGraph::isVisible(def.aabb, ctx.frustum)) {
 				ctx.TransparentSurfaces.push_back(def);
 			}
 		}
